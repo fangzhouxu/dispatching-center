@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"  
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">  
+<mapper namespace="com.xgd.resources.mapper.IpAndPortResourcesMapper">
+	<!-- 根据id查询服务器信息querySingleServerById -->
+	<select id="querySingleServerById" parameterType="Integer" resultType="Server">
+		SELECT
+				*
+		FROM
+			t_scheduling_server
+		WHERE
+			id = #{id}
+	</select>
+	<!-- 根据子模块id查询物理服务器ip -->
+	<select id="getServer_idByModule_id"  parameterType="String" resultType="Integer">
+		SELECT
+				sid
+		FROM
+				t_scheduling_module
+		WHERE
+				id = #{id}
+	</select>
+	<!-- 根据ip和端口查询服务器信息 -->
+	<select id="sumErrorStateOfModule" parameterType="String" resultType="Integer">
+		 <![CDATA[ 
+		SELECT
+			count(*)
+		FROM
+			t_scheduling_module
+		WHERE
+			sipAndPort = #{sipAndPort}
+		AND state >=2
+		]]>
+	</select>
+	<!-- 根据分页信息查询所有的Ip和端口状态信息 -->
+	<select id="queryServersByPage" parameterType="map" resultType="Server">
+			SELECT
+				id,
+				serverName,
+				ipAndport,
+				setUpTime,
+				LastEditTime,
+				cycleTime,
+				LastCheckTime,
+				serverState
+			FROM
+				t_scheduling_server
+			WHERE
+				1=1
+				<if test="setUpTime != null and setUpTime !=''">
+					AND setUpTime = #{setUpTime} 
+				</if>
+				<if test="lastEditTime !=null and lastEditTime !=''">
+					AND LastEditTime= #{lastEditTime} 
+				</if>
+				<if test="cycleTime != null and cycleTime !=''">
+					AND cycleTime= #{cycleTime} 
+				</if>
+				<if test="keyWord !=null and keyWord !=''">
+					AND (serverName LIKE concat('%',#{keyWord},'%')  OR ipAndport LIKE concat('%',#{keyWord},'%')) 
+				</if>	
+			ORDER BY
+				setUpTime DESC
+	</select> 
+	<select id="queryAllServersCount" resultType="Integer">
+		SELECT
+			COUNT(*)
+		FROM
+			t_scheduling_server;
+	</select>   
+    <!--  查询返回单条记录  -->    
+   <select id="getFreeIpAndPortByCheckCodeAndSipPort" parameterType="Module" resultType="String">    
+    	SELECT
+	       ipAndPort
+        FROM
+	       t_scheduling_module
+        WHERE
+	      `status` = #{status}
+      	AND startTime = #{startTime}
+        AND sipAndPort=#{server.ipAndPort}
+        AND switchKey=#{switchKey}
+      	LIMIT 1;
+    </select> 
+    <!-- 根据检验码查询出繁忙状态的ip和端口 -->
+    <select id="getBusyIpAndPortByCheckCodeAndSip" parameterType="Module" resultType="java.lang.String">
+    	SELECT
+			ipAndPort
+		FROM
+			t_scheduling_module
+		WHERE
+			checkCode = #{checkCode}
+			AND sipAndPort = #{server.ipAndPort} 
+			AND `status` = 1 
+			LIMIT 1;
+    </select>
+    <!-- 根据服务器Ip和端口查询出服务器检测周期 -->
+    <select id="queryCycleTimeByIpAndPort" parameterType="String" resultType="Integer">
+    	SELECT
+			cycleTime
+		FROM
+			t_scheduling_server
+		WHERE
+			ipAndPort = #{sipAndPort};
+    </select>
+	<!-- 查询所有子模块信息 -->
+	<select id="QueryAllModules" parameterType="Integer" resultType="Module">
+		SELECT
+			id,
+			moduleName,
+			ipAndPort,
+			errorTimes,
+			state,
+			switchKey
+		FROM
+			t_scheduling_module
+		WHERE
+			sid = #{sid}
+	</select>
+	<!-- 根据校验码和服务器Ip和端口查询子模块信息 -->
+	<select id="querySingleModuleByCheckCodeAndSip" parameterType="Module" resultType="Module">
+		SELECT
+			*
+		FROM
+			t_scheduling_module
+		WHERE
+			checkCode = #{checkCode}
+		AND sipAndPort =#{server.ipAndPort};
+	</select>
+	<!-- 根据当前时间和检测周期查询报错信息对象 -->
+	<select id="queryModuleErrorsByCycleTime" parameterType="map" resultType="Module_Error">
+		SELECT
+				*
+		FROM
+				t_scheduling_module_error
+		WHERE
+				setUpTime BETWEEN #{beginTime} AND #{endTime}
+		AND module_id = #{module_id};
+	</select>
+    <!-- 改变ip状态为繁忙或空闲 (正常状态)--> 
+    <update id="updateResourcesStatus" parameterType="Module">
+    	UPDATE 
+    		t_scheduling_module
+		SET 
+			STATUS = #{status},
+            startTime = #{startTime},
+            checkCode = #{checkCode}
+        WHERE
+	        ipAndPort = #{ipAndPort};
+    </update>
+    <!-- 10秒超时，强制将繁忙状态的Ip置为空闲状态 -->
+	<update id="updateResourcesStatusByForce" >
+		 <![CDATA[ 
+		UPDATE 
+			t_scheduling_module
+		SET `status` = 0,
+ 			startTime = '2011-11-11 00:00:00',
+ 			checkCode = '00000000'
+		WHERE
+			`status` = 1
+			AND startTime + 10 < NOW();
+			]]>
+	</update>
+	<!-- 更新子模块状态 -->
+	<update id="updateModuleState" parameterType="Module">
+		UPDATE 
+			t_scheduling_module
+		SET 
+			 <if test="null != errorTimes">
+           		errorTimes=#{errorTimes},
+       		</if>
+			state = #{state},
+			switchKey = #{switchKey}
+		WHERE
+			id=#{id}
+	</update>
+  	<!-- 插入服务器信息 -->
+  	<insert id="addServer" parameterType="Server">
+  		INSERT INTO 
+  		t_scheduling_server (
+					serverName,
+					ipAndPort,
+					setUpTime,
+					LastEditTime,
+					cycleTime,
+					lastCheckTime,
+					serverState
+			)
+			VALUE
+				(
+					#{serverName},
+					#{ipAndPort},
+					#{setUpTime},
+					#{lastEditTime},
+					#{cycleTime},
+					#{lastCheckTime},
+					#{serverState}
+				);
+  	</insert>
+  	<!-- 插入单个子模块信息 -->
+  	<insert id="addModule" parameterType="java.util.List">
+  		<selectKey keyProperty="id" resultType="java.lang.String">
+  			SELECT LAST_INSERT_ID();
+  		</selectKey>
+  		INSERT INTO t_scheduling_module (
+						id,
+						moduleName,
+						ipAndPort,
+						status,
+						startTime,
+						checkCode,
+						switchKey,
+						errorTimes,
+						state,
+						sid,
+						sipAndPort
+					)
+					VALUES
+			<foreach collection="list" item="Module" index="index" separator=",">
+				(#{Module.id},#{Module.moduleName},#{Module.ipAndPort},#{Module.status},#{Module.startTime},#{Module.checkCode},#{Module.switchKey},#{Module.errorTimes},#{Module.state},#{Module.server.id},#{Module.server.ipAndPort})
+			</foreach>
+  	</insert>
+  	<!-- 添加子模块错误信息 -->
+  	<insert id="createModuleError" parameterType="Module_Error">
+  		INSERT INTO
+  			 t_scheduling_module_error (
+						errorContent,
+						setUpTime,
+						posip,
+						module_id)
+		VALUE
+		(#{errorContent},#{setUpTime},#{posip},#{module.id});
+  	</insert>
+  	<!-- 修改服务器信息 -->
+  	<update id="updateServerById" parameterType="Server">
+  		UPDATE 
+  			t_scheduling_server
+		SET 
+			<if test="serverName != null">
+			serverName = #{serverName},
+			</if>
+			<if test="ipAndPort != null">
+	 		ipAndPort = #{ipAndPort},
+	 		</if>
+	 		<if test="lastEditTime != null">
+	 		lastEditTime =#{lastEditTime},
+	 		</if>
+	 		<if test="cycleTime != null">
+	 		cycleTime = #{cycleTime},
+	 		</if>
+	 		<if test="serverState != null">
+	 		serverState = #{serverState}
+	 		</if>
+		WHERE
+			1=1
+			<if test="id != null">
+			AND id = #{id}
+			</if>
+			<if test="ipAndPort != null">
+			AND ipAndPort = #{ipAndPort}
+			</if>
+  	</update>
+  	<!-- 根据id修改子模块信息 -->
+  	<update id="editModuleById" parameterType="Module">
+  		UPDATE 
+  				t_scheduling_module
+			SET 
+				moduleName = #{moduleName},
+	 			ipAndPort = #{ipAndPort}
+			WHERE
+				id = #{id};
+  	</update>
+  	<!-- 根据物理服务器同步子模块信息 -->
+  	<update id="updateModuleStateBySid" parameterType="Module">
+  		UPDATE 
+  				t_scheduling_module
+		SET 
+				sipAndPort = #{server.ipAndPort}
+		WHERE
+				sid = #{server.id};
+  	</update>
+  	<!-- 根据id删除服务器数据 -->
+  	<delete id="deleteServerById" parameterType="Integer">
+  		DELETE
+		FROM
+			t_scheduling_server
+		WHERE
+			id = #{id};
+  	</delete>
+  	<!-- 根据模块id删除错误信息 -->
+  	<delete id="deleteModule_ErrorsByModule_id" parameterType="String">
+  		DELETE
+		FROM
+			t_scheduling_module_error
+		WHERE
+			module_id = #{id};
+  	</delete>
+</mapper> 
